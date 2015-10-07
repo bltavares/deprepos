@@ -1,0 +1,2 @@
+git test/artichoke master https://github.com/bltavares/artichoke.git
+git test/kickstart 16b7005936cfd9f982fb173a57257782c14f943e https://github.com/bltavares/artichoke.git
