@@ -2,31 +2,34 @@ use std::fs::File;
 use std::io::Read;
 
 #[derive(Debug)]
-enum Dependency {
-    Git {
-        destination: String,
-        reference: String,
-        source: String
-    }
+struct Git {
+    destination: String,
+    reference: String,
+    source: String
 }
 
-impl<'a> Dependency {
-    fn destination(&'a self) -> &'a str {
-        match *self {
-            Dependency::Git { destination: ref d, .. } => d
-        }
-    }
+trait Dependency {
+    fn destination(&self) -> &str;
 
-    fn ensure_destination_exists(&'a self) {
+    fn ensure_destination_exists(&self) {
         let destination = self.destination();
-        std::fs::create_dir_all(self.destination()).ok().expect(&format!("Could not create the destination: {}", destination));
+        std::fs::create_dir_all(destination)
+            .ok()
+            .expect(&format!("Could not create the destination: {}", destination));
     }
 
-    fn sync(&'a self) {
+    fn sync(&self);
+}
+
+impl Dependency for Git {
+    fn destination(&self) -> &str {
+        &self.destination
+    }
+
+
+    fn sync(&self) {
         self.ensure_destination_exists();
-        match *self {
-            Dependency::Git { .. }  => println!("LOL")
-        }
+        println!("LOL")
     }
 }
 
@@ -38,7 +41,7 @@ fn dep_content() -> String {
     content
 }
 
-fn parse_file(s : &str) -> Vec<Dependency> {
+fn parse_file(s : &str) -> Vec<Box<Dependency>> {
     s.lines().map(|dep| {
         let mut line_words = dep.split_whitespace();
         let repo_type = line_words.next().expect("First argument should be: git");
@@ -47,11 +50,11 @@ fn parse_file(s : &str) -> Vec<Dependency> {
         let source = String::from(line_words.next().expect("Fourth argument should be a source url"));
 
         match repo_type {
-            "git" => Dependency::Git {
+            "git" => Box::new(Git {
                 destination: destination,
                 reference: reference,
                 source: source
-            },
+            }) as Box<Dependency>,
             _ => {
                 panic!("Can't handle repositories of type: {}", repo_type);
             }
@@ -64,7 +67,6 @@ fn main() {
     let content = dep_content();
     let parsed = parse_file(&content);
     for dep in parsed {
-        println!("{:?}", dep);
         dep.sync();
     }
 }
