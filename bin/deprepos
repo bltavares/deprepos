@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# requires:
+#  - mkdir
+#  - git
+#  - wc
+
+set -e
+
+deprepos.ensure_destination_path_exits() {
+  mkdir -p $1
+}
+
+deprepos.git.is_repo() {
+  test -d ${1}/.git
+}
+
+deprepos.git.validate_hash() {
+  git show --quiet $1 > /dev/null 2>&1 || bye "[$GIT_WORK_TREE] Revision $1 not found"
+}
+
+deprepos.git.validate_reference() {
+  local amount_of_references
+  amount_of_references=$(git show-ref $1 | wc -l)
+
+  case $amount_of_references in
+    0) deprepos.git.validate_hash $1;;
+    1) ;;
+    *) bye "[$GIT_WORK_TREE] More than one reference located. Please specify the remote. eg: origin/$1" ;;
+  esac
+}
+
+deprepos.git.sync() {
+  local destination reference source
+  destination=$1
+  reference=$2
+  source=$3
+
+  deprepos.ensure_destination_path_exits $destination
+
+  if ! deprepos.git.is_repo $destination; then
+    git clone $source $destination
+  fi
+
+  (
+    export GIT_WORK_TREE=$destination
+    export GIT_DIR=$destination/.git
+
+    echo "[${destination}] fetching remotes" 2>&1
+    git fetch --all --quiet
+
+    deprepos.git.validate_reference $reference
+    git checkout --detach --quiet --force $reference
+    echo "[${destination}] $(git show --oneline --abbrev --no-patch)" 2>&1
+  )
+}
+
+bye() {
+  echo $1 2>&1
+  exit 1
+}
+
+while read type destination reference source rest; do
+  test -n $type || bye "First argument must be a type: git"
+  test -n $destination || bye "Second argument must be a destinaton path"
+  test -n $reference || bye "Third argument must be a reference"
+  test -n $source || bye "Fourth argument must be a source location"
+
+  deprepos.${type}.sync $destination $reference $source
+done < ${1:-repo.deps}
